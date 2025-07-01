@@ -92,6 +92,15 @@ export default function ChatInterface() {
         ? currentQuery.replace(/near me|nearby|in my area|local/gi, `in ${userLocation}`)
         : currentQuery;
 
+      // Build conversation history for context (only include completed messages with answers)
+      const conversationHistory = messages
+        .filter(msg => msg.response && !msg.isLoading)
+        .map(msg => ({
+          query: msg.query,
+          answer: msg.response!.answer
+        }))
+        .slice(-5); // Keep only last 5 exchanges to avoid token limits
+
       // Call server-side API
       const response = await fetch('/api/search', {
         method: 'POST',
@@ -100,7 +109,8 @@ export default function ChatInterface() {
         },
         body: JSON.stringify({
           query: enhancedQuery,
-          location: userLocation
+          location: userLocation,
+          conversationHistory
         }),
         signal: abortControllerRef.current.signal,
       });

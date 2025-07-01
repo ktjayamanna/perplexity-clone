@@ -15,9 +15,15 @@ interface SearchResponse {
   sources: SearchSource[];
 }
 
+interface ConversationEntry {
+  query: string;
+  answer: string;
+}
+
 interface SearchRequest {
   query: string;
   location?: string;
+  conversationHistory?: ConversationEntry[];
 }
 
 // Environment variables validation
@@ -100,17 +106,29 @@ const openai = new OpenAI({
 });
 
 // OpenAI API for answer generation
-async function generateAnswer(query: string, sources: SearchSource[]): Promise<string> {
+async function generateAnswer(
+  query: string,
+  sources: SearchSource[],
+  conversationHistory?: ConversationEntry[]
+): Promise<string> {
   const sourceContext = sources
     .map((source, index) => `[${index + 1}] ${source.title}: ${source.description}`)
     .join('\n\n');
 
-  const prompt = `Based on the following search results, provide a comprehensive and accurate answer to the question: "${query}"
+  // Build conversation context if available
+  let conversationContext = '';
+  if (conversationHistory && conversationHistory.length > 0) {
+    conversationContext = `\n\nConversation History (for context):\n${conversationHistory
+      .map((entry, index) => `${index + 1}. User: ${entry.query}\n   Assistant: ${entry.answer}`)
+      .join('\n\n')}\n\n`;
+  }
 
-Search Results:
+  const prompt = `Based on the following search results and conversation history, provide a comprehensive and accurate answer to the question: "${query}"
+
+${conversationContext}Search Results:
 ${sourceContext}
 
-Please provide a well-structured, informative answer that synthesizes information from the search results. Be factual and cite relevant information naturally. If the search results don't contain enough information to answer the question completely, acknowledge this limitation.
+Please provide a well-structured, informative answer that synthesizes information from the search results. If this is a follow-up question, consider the conversation history to provide contextually relevant answers. Be factual and cite relevant information naturally. If the search results don't contain enough information to answer the question completely, acknowledge this limitation.
 
 Answer:`;
 
@@ -120,7 +138,7 @@ Answer:`;
       messages: [
         {
           role: 'system',
-          content: 'You are a helpful assistant that provides accurate, well-researched answers based on search results. Always be factual and acknowledge when information is limited.',
+          content: 'You are a helpful assistant that provides accurate, well-researched answers based on search results and conversation context. Always be factual and acknowledge when information is limited. When answering follow-up questions, reference previous conversation context appropriately.',
         },
         {
           role: 'user',
@@ -144,7 +162,7 @@ function validateSearchRequest(body: any): SearchRequest {
     throw new Error('Invalid request body');
   }
 
-  const { query, location } = body;
+  const { query, location, conversationHistory } = body;
 
   if (!query || typeof query !== 'string') {
     throw new Error('Query is required and must be a string');
@@ -174,6 +192,27 @@ function validateSearchRequest(body: any): SearchRequest {
     const trimmedLocation = location.trim();
     if (trimmedLocation.length > 0 && trimmedLocation.length <= 100) {
       result.location = trimmedLocation.replace(/[<>\"'&]/g, '');
+    }
+  }
+
+  // Optional conversation history parameter
+  if (conversationHistory && Array.isArray(conversationHistory)) {
+    const validHistory = conversationHistory
+      .filter((entry: any) =>
+        entry &&
+        typeof entry === 'object' &&
+        typeof entry.query === 'string' &&
+        typeof entry.answer === 'string'
+      )
+      .slice(0, 10) // Limit to last 10 entries to prevent token overflow
+      .map((entry: any) => ({
+        query: entry.query.trim().substring(0, 500), // Limit length
+        answer: entry.answer.trim().substring(0, 1000) // Limit length
+      }))
+      .filter((entry: ConversationEntry) => entry.query.length > 0 && entry.answer.length > 0);
+
+    if (validHistory.length > 0) {
+      result.conversationHistory = validHistory;
     }
   }
 
@@ -211,13 +250,13 @@ export async function POST(request: NextRequest) {
     
     // Parse and validate request
     const body = await request.json();
-    const { query, location } = validateSearchRequest(body);
+    const { query, location, conversationHistory } = validateSearchRequest(body);
 
     // Perform search
     const sources = await performSerpApiSearch(query);
-    
-    // Generate answer
-    const answer = await generateAnswer(query, sources);
+
+    // Generate answer with conversation context
+    const answer = await generateAnswer(query, sources, conversationHistory);
     
     // Return response with security headers
     const response: SearchResponse = {
