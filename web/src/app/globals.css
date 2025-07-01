@@ -136,3 +136,136 @@
     overflow: hidden;
   }
 }
+
+/* Custom Scrollbar Styles */
+@layer base {
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.554 0.046 257.417 / 0.3);
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.554 0.046 257.417 / 0.5);
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background: oklch(0.554 0.046 257.417 / 0.7);
+  }
+
+  /* Dark mode scrollbar */
+  .dark ::-webkit-scrollbar-thumb {
+    background: oklch(0.704 0.04 256.788 / 0.3);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.704 0.04 256.788 / 0.5);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:active {
+    background: oklch(0.704 0.04 256.788 / 0.7);
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.554 0.046 257.417 / 0.3) transparent;
+  }
+
+  .dark * {
+    scrollbar-color: oklch(0.704 0.04 256.788 / 0.3) transparent;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Enhanced scrollbar for main content areas */
+  .smooth-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.554 0.046 257.417 / 0.4) transparent;
+  }
+
+  .smooth-scrollbar::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .smooth-scrollbar::-webkit-scrollbar-track {
+    background: oklch(0.968 0.007 247.896 / 0.5);
+    border-radius: 6px;
+    margin: 4px;
+  }
+
+  .smooth-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+      180deg,
+      oklch(0.554 0.046 257.417 / 0.4) 0%,
+      oklch(0.554 0.046 257.417 / 0.6) 50%,
+      oklch(0.554 0.046 257.417 / 0.4) 100%
+    );
+    border-radius: 6px;
+    border: 1px solid oklch(0.929 0.013 255.508 / 0.2);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .smooth-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+      180deg,
+      oklch(0.554 0.046 257.417 / 0.6) 0%,
+      oklch(0.554 0.046 257.417 / 0.8) 50%,
+      oklch(0.554 0.046 257.417 / 0.6) 100%
+    );
+    border-color: oklch(0.929 0.013 255.508 / 0.4);
+    transform: scaleX(1.2);
+  }
+
+  .smooth-scrollbar::-webkit-scrollbar-thumb:active {
+    background: oklch(0.208 0.042 265.755 / 0.7);
+    transform: scaleX(1.1);
+  }
+
+  /* Dark mode enhanced scrollbar */
+  .dark .smooth-scrollbar {
+    scrollbar-color: oklch(0.704 0.04 256.788 / 0.4) transparent;
+  }
+
+  .dark .smooth-scrollbar::-webkit-scrollbar-track {
+    background: oklch(0.279 0.041 260.031 / 0.3);
+  }
+
+  .dark .smooth-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+      180deg,
+      oklch(0.704 0.04 256.788 / 0.4) 0%,
+      oklch(0.704 0.04 256.788 / 0.6) 50%,
+      oklch(0.704 0.04 256.788 / 0.4) 100%
+    );
+    border-color: oklch(1 0 0 / 0.1);
+  }
+
+  .dark .smooth-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+      180deg,
+      oklch(0.704 0.04 256.788 / 0.6) 0%,
+      oklch(0.704 0.04 256.788 / 0.8) 50%,
+      oklch(0.704 0.04 256.788 / 0.6) 100%
+    );
+    border-color: oklch(1 0 0 / 0.2);
+  }
+
+  .dark .smooth-scrollbar::-webkit-scrollbar-thumb:active {
+    background: oklch(0.929 0.013 255.508 / 0.7);
+  }
+}
