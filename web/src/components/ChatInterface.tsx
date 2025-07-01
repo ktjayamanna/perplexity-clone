@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Square } from 'lucide-react';
+import { Send, Square, Plus } from 'lucide-react';
 import SearchResults from './SearchResults';
 
 interface Message {
@@ -184,11 +184,40 @@ export default function ChatInterface() {
     }
   };
 
+  const handleNewChat = () => {
+    // Stop any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Clear all messages and reset state
+    setMessages([]);
+    setCurrentQuery('');
+    setIsLoading(false);
+    setRetryCount(0);
+    abortControllerRef.current = null;
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <div className="flex items-center justify-center py-8 border-b border-border/50">
+      <div className="flex items-center justify-between py-8 px-4 border-b border-border/50">
+        <div className="flex-1"></div>
         <h1 className="text-2xl font-semibold text-foreground">perplexity</h1>
+        <div className="flex-1 flex justify-end">
+          {messages.length > 0 && (
+            <Button
+              onClick={handleNewChat}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors"
+              disabled={isLoading}
+            >
+              <Plus className="h-4 w-4" />
+              New Chat
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
