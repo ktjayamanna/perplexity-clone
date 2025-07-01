@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Send, Square } from 'lucide-react';
@@ -26,7 +26,42 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentQuery, setCurrentQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [userLocation, setUserLocation] = useState('');
+  const [showLocationInput, setShowLocationInput] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Retry mechanism
+  const MAX_RETRIES = 2;
+  const RETRY_DELAY = 1000; // 1 second
+
+  // Auto-detect location on component mount
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
+            const data = await response.json();
+            const location = `${data.city}, ${data.principalSubdivision}` || 'New York, NY';
+            setUserLocation(location);
+          } catch (error) {
+            console.error('Error getting location:', error);
+            setUserLocation('New York, NY'); // Default fallback
+          }
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          setUserLocation('New York, NY'); // Default fallback
+          setShowLocationInput(true); // Show manual input if geolocation fails
+        }
+      );
+    } else {
+      setUserLocation('New York, NY'); // Default fallback
+      setShowLocationInput(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,55 +82,45 @@ export default function ChatInterface() {
     abortControllerRef.current = new AbortController();
 
     try {
-      // Mock API call - will be replaced with real APIs
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      // Enhance query with location if it seems location-relevant
+      const locationKeywords = ['near me', 'nearby', 'close to', 'in my area', 'local'];
+      const isLocationQuery = locationKeywords.some(keyword =>
+        currentQuery.toLowerCase().includes(keyword)
+      );
+
+      const enhancedQuery = isLocationQuery && userLocation
+        ? currentQuery.replace(/near me|nearby|in my area|local/gi, `in ${userLocation}`)
+        : currentQuery;
+
+      // Call server-side API
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: enhancedQuery,
+          location: userLocation
+        }),
+        signal: abortControllerRef.current.signal,
+      });
+
       // Check if request was aborted
       if (abortControllerRef.current?.signal.aborted) {
         return;
       }
 
-      // Mock response data
-      const mockResponse = {
-        answer: `Eminem is the stage name of Marshall Bruce Mathers III, an American rapper, songwriter, and record producer born on October 17, 1972, in St. Joseph, Missouri. He is widely regarded as one of the most influential and best-selling artists in hip-hop and popular music, credited with popularizing hip-hop in Middle America and breaking down racial barriers for white rappers in the genre.
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
 
-Eminem rose to fame with his major-label debut, The Slim Shady LP (1999), followed by critically and commercially successful albums such as The Marshall Mathers LP (2000) and The Eminem Show (2002). He is known for his controversial lyrics, technical rap skills, and alter ego "Slim Shady."`,
-        sources: [
-          {
-            id: '1',
-            title: 'Eminem - Wikipedia',
-            url: 'https://en.wikipedia.org/wiki/Eminem',
-            description: 'Marshall Bruce Mathers III (born October 17, 1972), known professionally as Eminem, is an American rapper, songwriter, and record producer. Regarded as one of the greatest and most influential rappers of all time, he is credited with popularizing hip-hop in Middle America and...',
-            favicon: 'https://en.wikipedia.org/favicon.ico'
-          },
-          {
-            id: '2',
-            title: 'Eminem - Biography - IMDb',
-            url: 'https://imdb.com/name/nm0004896/',
-            description: 'Eminem. Actor: 8 Mile. Eminem was born Marshall Bruce Mathers III in St. Joseph, Missouri, to Deborah R. (Nelson) and Marshall Bruce Mathers, Jr., who were in a band together, Daddy Warbucks. He is of English, as well as some German, Scottish ancestry. Marshall spent his early...',
-            favicon: 'https://imdb.com/favicon.ico'
-          },
-          {
-            id: '3',
-            title: 'Eminem | Biography, Songs, Albums, Slim Shady, Music, & Facts',
-            url: 'https://britannica.com/biography/Eminem',
-            description: 'Eminem is an American rapper, record producer, and actor who is known as one of the most-controversial and best-selling artists of the early 21st century. His best-known songs include "My Name Is," "The Real Slim Shady," "Stan," and "Lose Yourself."',
-            favicon: 'https://britannica.com/favicon.ico'
-          },
-          {
-            id: '4',
-            title: 'Eminem In His Own Words | MTV News - YouTube',
-            url: 'https://youtube.com/watch?v=Oj2_yx',
-            description: 'Eminem In His Own Words | MTV News - YouTube',
-            favicon: 'https://youtube.com/favicon.ico'
-          }
-        ]
-      };
+      const searchResponse = await response.json();
 
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === messageId 
-            ? { ...msg, response: mockResponse, isLoading: false }
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === messageId
+            ? { ...msg, response: searchResponse, isLoading: false }
             : msg
         )
       );
@@ -106,10 +131,30 @@ Eminem rose to fame with his major-label debut, The Slim Shady LP (1999), follow
       } else {
         // Handle other errors
         console.error('Error fetching response:', error);
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === messageId 
-              ? { ...msg, isLoading: false }
+
+        let errorMessage = 'Sorry, I encountered an error while searching. Please try again.';
+
+        if (error instanceof Error) {
+          if (error.message.includes('Rate limit')) {
+            errorMessage = 'Too many requests. Please wait a moment before trying again.';
+          } else if (error.message.includes('HTTP 500')) {
+            errorMessage = 'Service temporarily unavailable. Please try again later.';
+          } else if (error.message.includes('HTTP 400')) {
+            errorMessage = 'Invalid search query. Please try rephrasing your question.';
+          }
+        }
+
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  response: {
+                    answer: errorMessage,
+                    sources: []
+                  },
+                  isLoading: false
+                }
               : msg
           )
         );
@@ -168,6 +213,39 @@ Eminem rose to fame with his major-label debut, The Slim Shady LP (1999), follow
       {/* Input Area */}
       <div className="border-t border-border bg-background/95 backdrop-blur-sm p-4">
         <div className="max-w-4xl mx-auto">
+          {/* Location Display/Input */}
+          <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <span>📍</span>
+            {showLocationInput ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={userLocation}
+                  onChange={(e) => setUserLocation(e.target.value)}
+                  placeholder="Enter your location (e.g., New York, NY)"
+                  className="bg-transparent border-b border-muted-foreground/30 px-2 py-1 text-sm focus:outline-none focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLocationInput(false)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Save
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span>{userLocation || 'Location not set'}</span>
+                <button
+                  type="button"
+                  onClick={() => setShowLocationInput(true)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Change
+                </button>
+              </div>
+            )}
+          </div>
           <form onSubmit={handleSubmit} className="relative">
             <Textarea
               value={currentQuery}
